@@ -40,4 +40,4 @@ This simulator is designed to implement and optimize the Bollinger Bands trading
 
 ### Example
 <img width="1710" alt="Screenshot 2024-08-24 at 11 03 07 AM" src="https://github.com/user-attachments/assets/40ab0c78-91f0-4920-b0c1-a6e8cb49e843">
-![image](https://github.com/user-attachments/assets/4513351c-7cf2-4ac4-a183-9b865be0c37c)
+<img width="1710" src="https://github.com/user-attachments/assets/74af0def-76d6-45f0-a0e5-e45641d9d4ac">
