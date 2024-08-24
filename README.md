@@ -1,5 +1,7 @@
 # Stock Trading Simulator
 
+This simulator is designed to implement and optimize the Bollinger Bands trading strategy. It automatically buys stock when the close price touches or drops below the lower Bollinger Band and sells stock when the close price meets or exceeds the upper Bollinger Band. You can customize the amount of stock to buy and sell with each trade, allowing you to experiment with different strategies. The simulator also tests various combinations of buy and sell amounts, identifying the most effective strategy among those tested to optimize your trading performance.
+
 ## Getting Started
 
 ### Cloning the Repository
