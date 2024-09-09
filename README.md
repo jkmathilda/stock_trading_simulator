@@ -9,9 +9,12 @@ This simulator is designed to implement and optimize the Bollinger Bands trading
     git clone https://github.com/jkmathilda/stock_trading_simulator.git
 
 ### Setting up a Virtual Environment
+
+    cd stock_trading_simulator
+
     pyenv versions
 
-    pyenv local 3.11.6
+    pyenv local 3.12.5
 
     echo '.env'  >> .gitignore
     echo '.venv' >> .gitignore
@@ -22,6 +25,9 @@ This simulator is designed to implement and optimize the Bollinger Bands trading
 
     python -V                   # Check a python version
 
+    # pyenv install -list | grep 3.12
+    # pyenv install 3.12.5
+    
 ### Install the required dependencies
 
     pip list
