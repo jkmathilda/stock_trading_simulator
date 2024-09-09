@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from datetime import date, timedelta
 
-@st.cache_data
+@st.cache_data(ttl=1200)  # Unit: seconds. never expire (default)
 def get_stock_data(ticker, start_date, end_date):
     stock_data = yf.download(ticker, start=start_date, end=end_date)
     return stock_data
@@ -17,9 +17,9 @@ def calculate_moving_averages(stock_data, periods):
     return stock_data
 
 @st.cache_data
-def calculate_bollinger_bands(stock_data):
-    rolling_mean = stock_data['Close'].rolling(window=20).mean()
-    rolling_std = stock_data['Close'].rolling(window=20).std()
+def calculate_bollinger_bands(stock_data, window=20):
+    rolling_mean = stock_data['Close'].rolling(window=window).mean()
+    rolling_std = stock_data['Close'].rolling(window=window).std()
     stock_data['BB_mid_20'] = rolling_mean
     stock_data['BB_upper_20'] = rolling_mean + (rolling_std * 2)
     stock_data['BB_lower_20'] = rolling_mean - (rolling_std * 2)
@@ -42,38 +42,33 @@ def calculate_signals(stock_data):
 @st.cache_data
 def calculate_backtest(stock_data, moving_average_periods, initial_investment, buy_portion, sell_portion):
     stock_data = add_stock_data(stock_data, moving_average_periods, initial_investment, buy_portion, sell_portion)
-    
     stock_data = stock_data.sort_index(ascending=True)
     
     final_portfolio_value = stock_data['Portfolio_Value'].iloc[-1]
     total_profit_ratio = (final_portfolio_value - initial_investment) / initial_investment * 100
-                
     return final_portfolio_value, total_profit_ratio
 
 @st.cache_data
 def add_stock_data(stock_data, moving_average_periods, initial_investment, buy_portion, sell_portion):
-    df = stock_data
-    df = calculate_moving_averages(df, moving_average_periods)
-    df = calculate_bollinger_bands(df)
+    stock_data = calculate_moving_averages(stock_data, moving_average_periods)
+    stock_data = calculate_bollinger_bands(stock_data)
     
-    df = initialize_trade_columns(df, initial_investment)
-    df = calculate_signals(df)
-    df = process_trades(df, initial_investment, buy_portion, sell_portion)
-    
-    # print(df)
-    return df
+    stock_data = initialize_trade_columns(stock_data, initial_investment)
+    stock_data = calculate_signals(stock_data)
+    stock_data = process_trades(stock_data, initial_investment, buy_portion, sell_portion)    
+    return stock_data
 
 @st.cache_data
 def process_trades(stock_data, initial_investment, buy_portion, sell_portion):
-    cash = initial_investment
+    total_money = initial_investment
     trade_money = initial_investment // buy_portion
     shares = 0
     
     for index, row in stock_data.iterrows():
         # Buy signal
-        if row['Signal'] == 1 and trade_money > row['Close'] and cash >= trade_money:
+        if row['Signal'] == 1 and trade_money > row['Close'] and total_money >= trade_money:
             shares_bought = trade_money // row['Close']
-            cash -= shares_bought * row['Close']
+            total_money -= shares_bought * row['Close']
             shares += shares_bought
             stock_data.at[index, 'Trade_Amount'] = shares_bought * row['Close'] # Show shares bought
             stock_data.at[index, 'Trade_Count'] = shares_bought  # Show shares bought in this trade
@@ -83,14 +78,14 @@ def process_trades(stock_data, initial_investment, buy_portion, sell_portion):
             shares_to_sell = shares // sell_portion
             if shares_to_sell > 0:
                 sell_amount = shares_to_sell * row['Close']
-                cash += sell_amount
+                total_money += sell_amount
                 shares -= shares_to_sell
                 stock_data.at[index, 'Trade_Amount'] = -sell_amount  # Show shares sold
                 stock_data.at[index, 'Trade_Count'] = shares_to_sell  # Show shares sold in this trade
         
         # Update shares held and portfolio value
         stock_data.at[index, 'Shares_held'] = shares
-        stock_data.at[index, 'Portfolio_Value'] = shares * row['Close'] + cash
+        stock_data.at[index, 'Portfolio_Value'] = shares * row['Close'] + total_money
         
     return stock_data
 
@@ -137,10 +132,8 @@ def generate_graph(stock_data, moving_average_periods, show_bollinger, show_buy_
 def generate_graph2(stock_data):
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.plot(stock_data.index, stock_data['Portfolio_Value'], label='Total Asset Values')
-
-    # y-axis to integer
-    ax.yaxis.set_major_formatter(mtick.StrMethodFormatter('{x:,.0f}'))
-        
+    ax.yaxis.set_major_formatter(mtick.StrMethodFormatter('{x:,.0f}'))  # y-axis to integer
+    
     positive_trades = stock_data[stock_data['Trade_Amount'] * stock_data['Signal'] > 0]
     ax.bar(positive_trades.index, positive_trades['Trade_Amount'], color='green', alpha=1, label='Buy Amount')
     
@@ -155,19 +148,17 @@ def generate_graph2(stock_data):
     st.pyplot(fig)
 
 @st.cache_data
-def generate_multiple_backtest(stock_data_orig, moving_average_periods, initial_investment):
+def generate_multiple_backtest(stock_data, moving_average_periods, initial_investment):
     st.markdown(f"<p style='font-size:18px; color:MediumAquaMarine;'>Backtesting Results</p>", unsafe_allow_html=True)
-    stock_data_for_backtest = stock_data_orig.drop(columns=['Open', 'High', 'Low'])
     
     col1, col2 = st.columns(2)
     with col1:
-        # Initialize a list to store the results
         results = []
 
         # Loop through buy and sell portions
         for buy_portion in range(2, 21):  # from 2 to 20
             for sell_portion in range(2, 11):  # from 2 to 10
-                final_portfolio_value2, total_profit_ratio2 = calculate_backtest(stock_data_for_backtest, moving_average_periods, initial_investment, buy_portion, sell_portion)
+                final_portfolio_value2, total_profit_ratio2 = calculate_backtest(stock_data, moving_average_periods, initial_investment, buy_portion, sell_portion)
                 results.append({
                     'Buy Portion': buy_portion,
                     'Sell Portion': sell_portion,
@@ -190,13 +181,11 @@ def generate_multiple_backtest(stock_data_orig, moving_average_periods, initial_
         st.write(styled_df)
         
     with col2:
-        # graph
         plt.figure(figsize=(10, 6))
         for key, grp in results_df.groupby('Sell Portion'):
             plt.plot(grp['Buy Portion'], grp['Final Portfolio Value'], label=f'Sell Portion {key}', marker='o')
-            
-        # y-axis to integer
-        plt.gca().yaxis.set_major_formatter(mtick.StrMethodFormatter('{x:,.0f}'))
+        
+        plt.gca().yaxis.set_major_formatter(mtick.StrMethodFormatter('{x:,.0f}'))   # y-axis to integer
         
         plt.title('Final Portfolio Value by Buy and Sell Portion Units')
         plt.xlabel('Buy Portion Unit')
@@ -208,7 +197,7 @@ def generate_multiple_backtest(stock_data_orig, moving_average_periods, initial_
 def sidebar_options():
     ticker = st.sidebar.selectbox(
         "Select Stock Ticker", 
-        ["TQQQ", "QQQ", "SOXL", "SOXX", "GOOGL", "MSFT", "AAPL", "NVDA", "AMZN", "TSLA", "COST"],
+        ["TQQQ", "QQQ", "SOXL", "SOXX", "GOOGL", "MSFT", "AAPL", "NVDA", "AMZN"],
         index=0
     )
     
@@ -256,10 +245,8 @@ def sidebar_options():
             initial_investment, buy_portion, sell_portion, show_multiple_backtest)
 
 def main():
-    # Set page configuration at the top of the script
     st.set_page_config(page_title="Stock Price Viewer", page_icon="📈", layout='wide')
     st.title("📈 Stock Investment Simulator (Bollinger Band Strategy)")
-    # st.markdown("<h2>📈 Stock Investment Simulator (<a href='https://www.tradingwithrayner.com/bollinger-bands-trading-strategy/' target='_blank'>Bollinger Band Strategy</a>)</h2>", unsafe_allow_html=True)
     
     sidebar_result = sidebar_options()
     
@@ -278,7 +265,7 @@ def main():
         
         st.dataframe(stock_data, width=1200, height=400)
         
-        final_portfolio_value = stock_data['Portfolio_Value'].iloc[-1]
+        final_portfolio_value = stock_data.sort_values(by='Date', ascending=True)['Portfolio_Value'].iloc[-1]
         total_profit_ratio = (final_portfolio_value - initial_investment) / initial_investment * 100
         color = "hotpink" if total_profit_ratio > 0 else "blue"
         st.markdown(f"<p style='font-size:18px; color:{color};'>Final Portfolio Amount : {final_portfolio_value:,.2f} ({total_profit_ratio:.2f}%)</p>", unsafe_allow_html=True)
@@ -300,7 +287,7 @@ def main():
                 generate_graph2(stock_data)
         
         if show_multiple_backtest:
-            generate_multiple_backtest(stock_data_orig, moving_average_periods, initial_investment)
+            generate_multiple_backtest(stock_data, moving_average_periods, initial_investment)
 
 if __name__ == "__main__":
     main()
