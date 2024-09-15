@@ -13,21 +13,21 @@ def get_stock_data(ticker, start_date, end_date):
     return stock_data
 
 def calculate_atr(stock_data, breakout_multiplier):
-    ##### 목표가 구하기 #####
-    # 1) 고저 변동폭
+    ##### Calculate Target Price #####
+    # 1) High-Low Volatility
     stock_data['Range'] = stock_data['High'] - stock_data['Low'] 
     stock_data['k'] = breakout_multiplier
-    
-    # 2) 목표가 한칸 내려주고 (shift), 이후 k값을 곱한 목표가 계산
+
+    # 2) Shift the target price down by one (shift), then calculate the target price by multiplying by k value
     stock_data['Target'] = stock_data['Open'] + stock_data['Range'].shift(1) * breakout_multiplier
         
-    ##### 매수 시뮬레이션 #####
-    # 당일의 고가 df['High']가 df['target']값보다 클 경우, 이는 목표가를 상향돌파했다는 것이므로 이때는 df ['ror']에 df ['Close'] / df['Target']을 추가한다.
-    # 만약 df['High']가 df['target']보다 낮을 경우, 당일에 목표가를 돌파한 적이 없다는 것이므로 df['ror']에 1을 추가한다.
+    ##### Buy Simulation #####
+    # If the day's high price df['High'] is greater than df['Target'], it means the target price has been broken upward, so we add df['Close'] / df['Target'] to df['ror']
+    # If df['High'] is less than df['Target'], it means the target price was never broken during the day, so we add 1 to df['ror']
     stock_data['Buy'] = stock_data['High'] > stock_data['Target']
     stock_data['ror'] = np.where(stock_data['High'] > stock_data['Target'], stock_data['Close'] / stock_data['Target'], 1)  
 
-    # 최종 누적 산출
+    # Calculate Final Cumulative
     stock_data['Profit'] = stock_data['ror'].cumprod()
 
     return stock_data
@@ -85,7 +85,7 @@ def generate_graph(stock_data, show_buy_timing, breakout_multiplier):
     plt.figure(figsize=(10, 5))
     plt.plot(stock_data.index, stock_data['Close'], label='Close Price', color='black')
     
-    plot_volatility(stock_data, breakout_multiplier)  # Volatility breakout levels 그래프 추가
+    plot_volatility(stock_data, breakout_multiplier)  # Add Volatility Breakout Levels Graph
     plot_signals(stock_data, show_buy_timing)
     
     plt.xlabel('Date')
@@ -180,7 +180,7 @@ def sidebar_options():
     return (ticker, start_date, end_date, breakout_multiplier, 
             show_dataset_asecending, show_buy_timing,
             initial_investment, show_multiple_backtest)
-
+    
 def main():
     st.set_page_config(page_title="Stock Price Viewer", page_icon="📈", layout='wide')
     st.title("📈 Stock Investment Simulator (Volatility Breakout Strategy)")
